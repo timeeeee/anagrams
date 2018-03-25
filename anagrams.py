@@ -1,5 +1,6 @@
 from string import ascii_lowercase as lowercase
 from collections import Counter
+from sys import argv
 
 from nose.tools import *
 
@@ -66,6 +67,9 @@ class Trie(object):
 
 with open("english_words.txt") as f:
     ENGLISH_TRIE = Trie(line.strip() for line in f)
+
+with open("enable1.txt") as f:
+    OVERKILL_TRIE = Trie(line.strip() for line in f)
 
 
 def test_wordlist_trie():
@@ -161,9 +165,13 @@ def test_cat_anagrams():
 
 
 if __name__ == "__main__":
-    counts = Counter("".join("captain tyin knots".split()))
-    with open("enable1.txt") as f:
-        big_trie = Trie(line.strip() for line in f)
-        
-    for anagram in _find_anagrams(counts, big_trie):
+    if len(argv) == 1:
+        print("use: python3 anagrams.py <phrase to make anagrams of>")
+        exit(0)
+    
+    available = Counter()
+    for word in argv[1:]:
+        available.update(char for char in word.lower() if char in lowercase)
+
+    for anagram in _find_anagrams(available, ENGLISH_TRIE):
         print(anagram)
