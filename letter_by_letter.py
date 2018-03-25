@@ -1,3 +1,6 @@
+from string import ascii_lowercase as lowercase
+from collections import Counter
+
 from nose.tools import *
 
 
@@ -61,14 +64,15 @@ class Trie(object):
         return json
 
 
+with open("english_words.txt") as f:
+    ENGLISH_TRIE = Trie(line.strip() for line in f)
+
+
 def test_wordlist_trie():
-    trie = Trie()
     with open("english_words.txt") as f:
         for line in f:
             word = line.strip().lower()
-            trie.add(word)
-
-            assert_in(word, trie)
+            assert_in(word, ENGLISH_TRIE)
 
 
 def test_trie_wordlist_argument():
@@ -82,33 +86,84 @@ def test_trie_wordlist_argument():
 
 
 def test_no_fake_words():
-    with open("english_words.txt") as f:
-        trie = Trie(line.strip() for line in f)
-
     not_words = [
         "", "flarpy", "queem", "b"
     ]
 
     for not_word in not_words:
-        assert_not_in(not_word, trie)
+        assert_not_in(not_word, ENGLISH_TRIE)
 
 
 def find_anagrams(letters):
     pass
 
 
-def _find_anagrams():
+def _find_anagrams(available, trie, this_word="", last_word=None, depth=0):
     """
+    Find all anagrams that can be made with the given letters, where available
+    is a dictionary of how many of each letter are left. Trie is the node of a
+    trie to build words from. Yield each solution as a list of strings.
     """
-    pass
+    # print("  " * depth + this_word + "... ?")
 
+    # Base case:
+    # No letters left! this is an anagram IF a word can end here on the trie
+    if all(x == 0 for x in available.values()):
+        if trie.end:
+            # yield one empty solution
+            yield [""]
+        else:
+            # no solutions
+            raise StopIteration
+
+    # Otherwise try each available letter
+    for char in lowercase:
+        # LOTS of conditions. Only use this letter if:
+        # ... we have it left to use
+        is_available = char in available and available[char] > 0
+        # ... it's a valid next letter in the current word
+        is_valid = char in trie.children
+        # ... and, it maintains alphabetical order of words in the result
+        is_alphabetical = last_word is None or char >= last_word[0]
+
+        if is_available and is_valid and is_alphabetical:
+            # Find all anagrams of the remaining characters!
+            # counts will be passed by reference so modify this first
+            available[char] -= 1
+            next_trie = trie.children[char]  # advance one letter in the trie
+            next_last_word = None  # next line might set this
+            if last_word is not None and len(last_word) > 1:
+                next_last_word = last_word[1:]
+            answers = _find_anagrams(
+                available, next_trie, this_word + char, next_last_word, depth + 1)
+            for first, *rest in answers:
+                yield [char + first] + rest
+
+            # change the counts back before moving on to the next letter!
+            available[char] += 1
+
+    # Also if this is a valid word ending, we can start a new word:
+    if trie.end:
+        for solution in _find_anagrams(available, trie.root, last_word=this_word, depth=depth + 1):
+            # (The calling functions will add letters to the empty string)
+            yield [""] + solution
+
+
+def test_find_anagrams_one_letter():
+    trie = Trie(["a"])
+    a = list(_find_anagrams({"a": 1}, trie))
+    assert_list_equal(a, [["a"]])
+
+
+def test_cat_anagrams():
+    cat_anagrams = list(_find_anagrams(Counter("cat"), ENGLISH_TRIE))
+    assert_list_equal(sorted(cat_anagrams), [["act"], ["cat"]])
 
 
 if __name__ == "__main__":
-    with open("english_words.txt") as f:
-        trie = Trie(line.strip() for line in f)
-
-    import json
-
-    with open("trie.json", "w") as f:
-        json.dump(trie.to_json(), f)
+    counts = Counter("".join("captain tyin knots".split()))
+    with open("enable1.txt") as f:
+        big_trie = Trie(line.strip() for line in f)
+        
+    for anagram in _find_anagrams(counts, big_trie):
+        print(anagram)
